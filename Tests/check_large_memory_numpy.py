@@ -46,6 +46,10 @@ class LargeMemoryNumpyTest(PillowTestCase):
         a = np.zeros((36352, 18144), dtype=np.float)
         im = Image.fromarray(a, mode='F')
 
+    def test_1475_c(self):
+        a = np.zeros((31000, 30030, 3), dtype=np.uint8)
+        img = Image.fromarray(a, 'RGB')
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -29,6 +29,8 @@
 
 /* FIXME: make these pluggable! */
 
+#define PY_SSIZE_T_CLEAN
+
 #include "Python.h"
 
 #include "Imaging.h"
@@ -46,19 +48,19 @@
 
 typedef struct {
     PyObject_HEAD
-    int (*decode)(Imaging im, ImagingCodecState state,
-                  UINT8* buffer, int bytes);
-    int (*cleanup)(ImagingCodecState state);
+    Py_ssize_t (*decode)(Imaging im, ImagingCodecState state,
+                  UINT8* buffer, Py_ssize_t bytes);
+    Py_ssize_t (*cleanup)(ImagingCodecState state);
     struct ImagingCodecStateInstance state;
     Imaging im;
     PyObject* lock;
-    int pulls_fd;
+    Py_ssize_t pulls_fd;
 } ImagingDecoderObject;
 
 static PyTypeObject ImagingDecoderType;
 
 static ImagingDecoderObject*
-PyImaging_DecoderNew(int contextsize)
+PyImaging_DecoderNew(Py_ssize_t contextsize)
 {
     ImagingDecoderObject *decoder;
     void *context;
@@ -117,7 +119,7 @@ static PyObject*
 _decode(ImagingDecoderObject* decoder, PyObject* args)
 {
     UINT8* buffer;
-    int bufsize, status;
+    Py_ssize_t bufsize, status;
     ImagingSectionCookie cookie;
 
     if (!PyArg_ParseTuple(args, PY_ARG_BYTES_LENGTH, &buffer, &bufsize))
@@ -139,7 +141,7 @@ _decode(ImagingDecoderObject* decoder, PyObject* args)
 static PyObject*
 _decode_cleanup(ImagingDecoderObject* decoder, PyObject* args)
 {
-    int status = 0;
+    Py_ssize_t status = 0;
 
     if (decoder->cleanup){
         status = decoder->cleanup(&decoder->state);
@@ -158,7 +160,7 @@ _setimage(ImagingDecoderObject* decoder, PyObject* args)
     PyObject* op;
     Imaging im;
     ImagingCodecState state;
-    int x0, y0, x1, y1;
+    Py_ssize_t x0, y0, x1, y1;
 
     x0 = y0 = x1 = y1 = 0;
 
@@ -296,7 +298,7 @@ int
 get_unpacker(ImagingDecoderObject* decoder, const char* mode,
              const char* rawmode)
 {
-    int bits;
+    Py_ssize_t bits;
     ImagingShuffler unpack;
 
     unpack = ImagingFindUnpacker(mode, rawmode, &bits);
@@ -323,11 +325,11 @@ PyImaging_BitDecoderNew(PyObject* self, PyObject* args)
     ImagingDecoderObject* decoder;
 
     char* mode;
-    int bits  = 8;
-    int pad   = 8;
-    int fill  = 0;
-    int sign  = 0;
-    int ystep = 1;
+    Py_ssize_t bits  = 8;
+    Py_ssize_t pad   = 8;
+    Py_ssize_t fill  = 0;
+    Py_ssize_t sign  = 0;
+    Py_ssize_t ystep = 1;
     if (!PyArg_ParseTuple(args, "s|iiiii", &mode, &bits, &pad, &fill,
                           &sign, &ystep))
         return NULL;
@@ -365,22 +367,22 @@ PyImaging_BcnDecoderNew(PyObject* self, PyObject* args)
 
     char* mode;
     char* actual;
-    int n = 0;
-    int ystep = 1;
+    Py_ssize_t n = 0;
+    Py_ssize_t ystep = 1;
     if (!PyArg_ParseTuple(args, "s|ii", &mode, &n, &ystep))
         return NULL;
 
     switch (n) {
     case 1: /* BC1: 565 color, 1-bit alpha */
     case 2: /* BC2: 565 color, 4-bit alpha */
-    case 3: /* BC3: 565 color, 2-endpoint 8-bit interpolated alpha */
+    case 3: /* BC3: 565 color, 2-endpoPy_ssize_t 8-bit interpolated alpha */
     case 5: /* BC5: 2-channel 8-bit via 2 BC3 alpha blocks */
     case 7: /* BC7: 4-channel 8-bit via everything */
         actual = "RGBA"; break;
     case 4: /* BC4: 1-channel 8-bit via 1 BC3 alpha block */
         actual = "L"; break;
     case 6: /* BC6: 3-channel 16-bit float */
-        /* TODO: support 4-channel floating point images */
+        /* TODO: support 4-channel floating poPy_ssize_t images */
         actual = "RGBAF"; break;
     default:
         PyErr_SetString(PyExc_ValueError, "block compression type unknown");
@@ -433,8 +435,8 @@ PyImaging_GifDecoderNew(PyObject* self, PyObject* args)
     ImagingDecoderObject* decoder;
 
     char* mode;
-    int bits = 8;
-    int interlace = 0;
+    Py_ssize_t bits = 8;
+    Py_ssize_t interlace = 0;
     if (!PyArg_ParseTuple(args, "s|ii", &mode, &bits, &interlace))
         return NULL;
 
@@ -500,8 +502,8 @@ PyImaging_LibTiffDecoderNew(PyObject* self, PyObject* args)
     char* mode;
     char* rawmode;
     char* compname;
-    int fp;
-    int ifdoffset;
+    Py_ssize_t fp;
+    Py_ssize_t ifdoffset;
 
     if (! PyArg_ParseTuple(args, "sssii", &mode, &rawmode, &compname, &fp, &ifdoffset))
         return NULL;
@@ -590,7 +592,7 @@ PyImaging_PcxDecoderNew(PyObject* self, PyObject* args)
 
     char* mode;
     char* rawmode;
-    int stride;
+    Py_ssize_t stride;
     if (!PyArg_ParseTuple(args, "ssi", &mode, &rawmode, &stride))
         return NULL;
 
@@ -620,8 +622,8 @@ PyImaging_RawDecoderNew(PyObject* self, PyObject* args)
 
     char* mode;
     char* rawmode;
-    int stride = 0;
-    int ystep  = 1;
+    Py_ssize_t stride = 0;
+    Py_ssize_t ystep  = 1;
     if (!PyArg_ParseTuple(args, "ss|ii", &mode, &rawmode, &stride, &ystep))
         return NULL;
 
@@ -653,8 +655,8 @@ PyImaging_SgiRleDecoderNew(PyObject* self, PyObject* args)
 
     char* mode;
     char* rawmode;
-    int ystep = 1;
-    int bpc = 1;
+    Py_ssize_t ystep = 1;
+    Py_ssize_t bpc = 1;
     if (!PyArg_ParseTuple(args, "ss|ii", &mode, &rawmode, &ystep, &bpc))
         return NULL;
 
@@ -713,8 +715,8 @@ PyImaging_TgaRleDecoderNew(PyObject* self, PyObject* args)
 
     char* mode;
     char* rawmode;
-    int ystep = 1;
-    int depth = 8;
+    Py_ssize_t ystep = 1;
+    Py_ssize_t depth = 8;
     if (!PyArg_ParseTuple(args, "ss|ii", &mode, &rawmode, &ystep, &depth))
         return NULL;
 
@@ -771,7 +773,7 @@ PyImaging_ZipDecoderNew(PyObject* self, PyObject* args)
 
     char* mode;
     char* rawmode;
-    int interlaced = 0;
+    Py_ssize_t interlaced = 0;
     if (!PyArg_ParseTuple(args, "ss|i", &mode, &rawmode, &interlaced))
         return NULL;
 
@@ -821,8 +823,8 @@ PyImaging_JpegDecoderNew(PyObject* self, PyObject* args)
     char* mode;
     char* rawmode; /* what we want from the decoder */
     char* jpegmode; /* what's in the file */
-    int scale = 1;
-    int draft = 0;
+    Py_ssize_t scale = 1;
+    Py_ssize_t draft = 0;
 
     if (!PyArg_ParseTuple(args, "ssz|ii", &mode, &rawmode, &jpegmode,
                           &scale, &draft))
@@ -875,9 +877,9 @@ PyImaging_Jpeg2KDecoderNew(PyObject* self, PyObject* args)
     char* mode;
     char* format;
     OPJ_CODEC_FORMAT codec_format;
-    int reduce = 0;
-    int layers = 0;
-    int fd = -1;
+    Py_ssize_t reduce = 0;
+    Py_ssize_t layers = 0;
+    Py_ssize_t fd = -1;
     PY_LONG_LONG length = -1;
 
     if (!PyArg_ParseTuple(args, "ss|iiiL", &mode, &format,
